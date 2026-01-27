@@ -2,8 +2,8 @@ from transformers import T5Tokenizer, T5ForConditionalGeneration
 import torch
 import threading
 
-# Use FLAN-T5 Large for better quality (approx 3GB download)
-MODEL_NAME = "google/flan-t5-large"
+# Use FLAN-T5 Base for faster performance (approx 1GB download)
+MODEL_NAME = "google/flan-t5-base"
 tokenizer = None
 model = None
 model_lock = threading.Lock()
@@ -60,7 +60,7 @@ def summarize_with_t5(text, min_words=300, max_words=500, custom_prompt=None):
                 **inputs, 
                 max_new_tokens=max_tokens,
                 min_new_tokens=min_tokens,
-                num_beams=4,                 # 4 is usually sufficient and faster than 6
+                num_beams=2,                 # Reduced from 4 to 2 for speed
                 length_penalty=1.5,          # specific penalty
                 no_repeat_ngram_size=3,
                 early_stopping=True

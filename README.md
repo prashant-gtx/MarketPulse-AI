@@ -16,8 +16,8 @@ MarketPulse AI is a comprehensive web application that aggregates real-time fina
 
 ### 🤖 AI-Powered Analysis
 - **Sentiment Analysis**: FinBERT-based sentiment scoring for every article (positive/negative/neutral)
-- **AI Summarization**: Google Gemini-powered article summaries for quick insights
-- **Intelligent Chatbot**: Context-aware financial assistant for market queries
+- **AI Summarization**: Local T5 model (Flan-T5) for privacy-focused article summaries
+- **Intelligent Chatbot**: Local Llama 3 (via Ollama) financial assistant for market queries
 - **Trend Detection**: Identifies trending news based on engagement metrics
 
 ### 📊 Market Data Integration
@@ -29,7 +29,7 @@ MarketPulse AI is a comprehensive web application that aggregates real-time fina
 ### 👤 Personalized Experience
 - User authentication and profile management
 - Custom watchlists for tracking favorite stocks
-- Personalized news filtering based on watchlist
+- **Smart "For Me" Feed**: Strictly filters news for user's watchlist stocks using advanced regex and alias matching
 - Category-based news filtering (Economy, Stocks, Commodities, etc.)
 
 ### 🔍 Advanced Search & Filtering
@@ -47,9 +47,9 @@ MarketPulse AI is a comprehensive web application that aggregates real-time fina
 - **Framework**: FastAPI (Python)
 - **Database**: SQLite with SQLAlchemy ORM
 - **AI/ML**: 
-  - Transformers (FinBERT for sentiment analysis)
-  - Google Generative AI (Gemini for summarization and chat)
-  - PyTorch for model inference
+  - **Llama 3 / 3.2**: Local LLM for chatbot (via Ollama)
+  - **Flan-T5**: Local Transformer model for summarization
+  - **FinBERT**: Sentiment analysis
 - **Web Scraping**: BeautifulSoup4, Requests
 - **Market Data**: yfinance for real-time stock data
 - **Authentication**: Passlib with bcrypt for secure password hashing
@@ -78,11 +78,12 @@ MarketPulseAI-main/
 │   ├── main.py                 # FastAPI application entry point
 │   ├── scraper.py              # News scraping engine
 │   ├── sentiment.py            # FinBERT sentiment analysis
-│   ├── chatbot.py              # Gemini AI chatbot & summarization
+│   ├── chatbot.py              # Llama 3 (Ollama) chatbot integration
+│   ├── summarizer.py           # T5 summarization logic
 │   ├── market_data.py          # Stock data fetching
 │   ├── database.py             # Database models and operations
 │   ├── requirements.txt        # Python dependencies
-│   ├── .env                    # Environment variables (API keys)
+│   ├── .env                    # Environment variables
 │   ├── venv/                   # Python virtual environment
 │   └── moneycontrol_news.json  # Cached news data
 │
@@ -107,7 +108,8 @@ MarketPulseAI-main/
 ### Prerequisites
 - Python 3.11+
 - Node.js 20+
-- Google Gemini API key (for AI features)
+- **Ollama**: Must be installed and running locally
+  - Pull Llama 3 model: `ollama pull llama3.2`
 
 ### Backend Setup
 

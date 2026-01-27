@@ -1,197 +1,103 @@
-import google.generativeai as genai
-import os
+import requests
 import json
-from scraper import get_latest_news, scrape_article_content
-from sentiment import analyze_sentiment
-from summarizer import summarize_with_t5
+import logging
+import os
 
-# Setup models
-chat_model = None
-news_model = None
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Ollama Configuration
+OLLAMA_API_URL = "http://localhost:11434/api/chat"
+OLLAMA_MODEL = "llama3.2"
+
+# System Prompt for Financial Assistant
+SYSTEM_PROMPT = """You are MarketPulse AI, an expert financial analyst and assistant.
+Your goal is to provide accurate, insightful, and concise answers to user questions about the Indian Stock Market (NSE/BSE), economy, and finance.
+
+Guidelines:
+1. Be professional yet accessible. Avoid overly complex jargon without explanation.
+2. If asked about specific stocks, focus on the context provided in the question or recent news.
+3. If you don't know the answer, admit it. Do not hallucinate financial data.
+4. Keep answers concise (under 150 words) unless detailed analysis is requested.
+5. Format your response in clean Markdown.
+
+You likely have access to some context about news or market data passed in the user prompt. Use it effectively."""
 
 def init_gemini():
-    global chat_model
-    api_key = os.getenv("GEMINI_API_KEY")
-    if api_key:
-        try:
-            # We need to configure the global genai with one key, 
-            # or creates specific client instances if the library supports it.
-            # The google-generativeai library uses a global configuration usually, 
-            # but we can try to re-configure or use different client instances if available.
-            # However, for simplicity given standard usage:
-            # If both keys are different, we might need to re-configure before each call 
-            # OR hopefully the client supports passing `api_key` to the model constructor or similar?
-            # Checking docs (mental check): genai.configure() sets the global default.
-            # To use diverse keys, we might need to handle it carefully.
-            # Let's assume we can re-configure before generation or use a context manager if needed.
-            # BUT, standard approach:
-            genai.configure(api_key=api_key)
-            chat_model = genai.GenerativeModel('gemini-2.5-flash')
-            print("Gemini Chat model initialized.")
-        except Exception as e:
-            print(f"Error initializing Gemini Chat: {e}")
-    else:
-        print("Warning: GEMINI_API_KEY not found. Chatbot will not work.")
-
-def init_summarizer():
-    global news_model
-    # For the news summarizer, we utilize the specific news API key.
-    # Note: Using `genai.configure` switches the global key. 
-    # Since this is a threaded environment (FastAPI), switching globals is risky.
-    # However, for this implementation script, we'll try to instantiate with specific client objects if possible,
-    # or just switch context. 
-    # actually, the google-generativeai python client is a wrapper.
-    # If we really need two different keys at the same time, it is tricky with the `genai` global.
-    # Let's look at `genai.configure`...
-    # As a workaround for different keys in the same process:
-    # We can pass `api_key` to `generate_content`? No, usually not.
-    # We can create a partial wrapper.
-    # STARTUP-CHECK: If users provided two different keys, we really want to respect that.
-    # Let's try to set it just-in-time if necessary, but that's not thread-safe.
-    # Let's assume for now we configure the NEWS key in `init_summarizer` solely for the `news_model` 
-    # knowing that `chat_model` relies on the other. 
-    # WAIT - this is a conflict if both are used concurrently. 
-    # Correct path: `lib` usually supports Client(api_key=...) in newer versions.
-    # Falling back to strict re-configuration might be our only option without inspecting library version deeply.
-    # We will implement a helper to call generation with a specific key.
-    
-    api_key = os.getenv("GEMINI_NEWS_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if api_key:
-        try:
-            # We'll just define the model here, but the key binding happens at call time if we can.
-            # Or we simply re-configure.
-            news_model = genai.GenerativeModel('gemini-2.5-flash')
-            print("Gemini News model initialized.")
-        except Exception as e:
-            print(f"Error initializing Gemini News: {e}")
-    else:
-        print("Warning: GEMINI_NEWS_API_KEY (and fallback GEMINI_API_KEY) not found. Summarizer will not work.")
-
-# Load stocks.json for alignment
-STOCKS_FILE = os.path.join(os.path.dirname(__file__), "stocks.json")
-try:
-    with open(STOCKS_FILE, "r") as f:
-        stocks_data = json.load(f)
-        stocks_dict = stocks_data.get("companies", {})
-except Exception as e:
-    print(f"Error loading stocks.json: {e}")
-    stocks_dict = {}
-
-def generate_with_key(model_instance, prompt, api_key_env_var):
-    """
-    Helper to safely switch API keys for a specific generation call.
-    This is not thread-safe but works for this basic setup.
-    """
-    current_key = os.getenv(api_key_env_var)
-    if not current_key and api_key_env_var == "GEMINI_NEWS_API_KEY":
-        current_key = os.getenv("GEMINI_API_KEY")
-
-    if not current_key:
-        return "Error: API Key not found."
-    
-    # Configure with the specific key for this call
-    genai.configure(api_key=current_key)
+    """No-op for compatibility, or check Ollama connection."""
     try:
-        response = model_instance.generate_content(prompt)
-        return response.text
+        # Quick check if Ollama is reachable
+        # Note: /api/tags or root might be better for health check
+        logger.info(f"Checking Ollama connection at {OLLAMA_API_URL}...")
+        requests.get("http://localhost:11434/", timeout=2) # Base URL check usually returns 200 OK 'Ollama is running'
+        logger.info(f"Ollama appears to be running.")
     except Exception as e:
-        return f"Error generating content: {e}"
+        logger.warning(f"Could not connect to Ollama at {OLLAMA_API_URL}. Ensure it is running. Error: {e}")
 
-def get_chat_response(user_query):
-    if not chat_model:
-        init_gemini()
-        if not chat_model:
-            return "Error: Gemini API key not configured. Please set GEMINI_API_KEY."
-
-    # Get context from latest news
-    news = get_latest_news()
-    
-    # Create a summary context from the top 10 news items
-    context = "Here is the latest financial news and historical analysis:\n"
-    for item in news[:10]:
-        impact_str = ""
-        if item.get('ticker') and item.get('actual_impact') is not None:
-            impact_str = f" [Historical Impact: {item['ticker']} moved {item['actual_impact']}%]"
-        
-        context += f"- {item['headline']} ({item['timestamp']}) - Sentiment: {item.get('sentiment', 'Unknown')}{impact_str}\n"
-
-    prompt = f"""You are a helpful financial assistant for MarketPulse AI.
-    Use the provided news context to answer the user's question.
-    
-    CRITICAL INSTRUCTION:
-    If the context contains "Historical Impact" data for a company the user is asking about, YOU MUST mentions it.
-    Example: "Based on similar past news, this stock moved X%."
-    
-    Context:
-    {context}
-    
-    User Question: {user_query}
+def get_chat_response(query: str, context: str = "") -> str:
     """
-
-    # Use the Chat API Key
-    return generate_with_key(chat_model, prompt, "GEMINI_API_KEY")
-
-def summarize_news(url):
-    # Try to find content in cache first
-    news = get_latest_news()
-    content = next((n.get("full_content") for n in news if n.get("link") == url), None)
-    
-    if not content:
-        print(f"Content not in cache for {url}, scraping...")
-        content = scrape_article_content(url)
-        if content and content != "Could not extract article content.":
-            # Save to JSON for future use
-            try:
-                from scraper import load_existing_news, save_news
-                existing_news = load_existing_news()
-                updated = False
-                for item in existing_news:
-                    if item.get("link") == url:
-                        item["full_content"] = content
-                        updated = True
-                        break
-                if updated:
-                    save_news(existing_news)
-                    print(f"Persisted content for {url} to disk.")
-            except Exception as e:
-                print(f"Failed to persist content for {url}: {e}")
+    Generates a response using the local Llama 3 model via Ollama.
+    """
+    try:
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": query}
+        ]
         
-    if not content:
-        return {"summary": "Failed to fetch article content.", "sentiment": "neutral"}
+        # If context is provided (e.g. from RAG in future), append it
+        if context:
+            messages.insert(1, {"role": "system", "content": f"Context: {context}"})
 
-    # Initialize FinBERT if not already
-    from sentiment import init_model as init_finbert
-    init_finbert()
+        payload = {
+            "model": OLLAMA_MODEL,
+            "messages": messages,
+            "stream": False
+        }
+        
+        response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+        response.raise_for_status()
+        
+        data = response.json()
+        return data.get("message", {}).get("content", "Error: No response from model.")
 
-    # 1. Analyze Sentiment with FinBERT First (using first 2000 chars for speed/limit)
-    finbert_result = analyze_sentiment(content[:2000]) 
-    finbert_label = finbert_result.get("label", "neutral").capitalize()
-    
-    # 2. Use FLAN-T5 for both Metadata and Summary
-    print(f"Generating T5 full summary (metadata + insights) for {url}...")
-    
-    # Combined prompt for T5 to handle everything locally
-    t5_prompt = """Extract metadata and summarize this financial article:
-Format:
-Company Name: [Extract]
-Sector: [Extract]
-Incident Type: [Classify]
+    except requests.exceptions.ConnectionError:
+        return "Error: Could not connect to Ollama. Is the Ollama app running?"
+    except requests.exceptions.ReadTimeout:
+        return "Error: The model took too long to respond. Please try again or ask a shorter question."
+    except Exception as e:
+        logger.error(f"Error in chat generation: {e}")
+        return f"I apologize, but I encountered an error processing your request. ({str(e)})"
 
-Key Insights (AI Generated):
-[3-sentence summary]
-
-Article Content:
-{text}
-"""
-    
-    final_summary_text = summarize_with_t5(content, min_words=100, max_words=250, custom_prompt=t5_prompt)
-
-    return {
-        "summary": final_summary_text,
-        "sentiment": finbert_label.lower() 
-    }
-
-
-if __name__ == "__main__":
-    # Test only if needed
+# Legacy/Unused for now but kept if main.py imports it
+def init_summarizer():
     pass
+
+# Imports for Summarization
+from scraper import scrape_article_content
+from summarizer import summarize_with_t5
+from sentiment import analyze_sentiment
+
+def summarize_news(news_link: str):
+    """
+    Fetches article content, summarizes it using T5, and performs sentiment analysis.
+    """
+    try:
+        # 1. Scrape Content
+        content = scrape_article_content(news_link)
+        if not content or len(content) < 100:
+            return {"summary": "Could not extract sufficient content from this article to summarize.", "sentiment": "neutral"}
+            
+        # 2. Summarize
+        # Note: summarize_with_t5 handles model loading if needed
+        summary = summarize_with_t5(content)
+        
+        # 3. Sentiment Analysis
+        sentiment_result = analyze_sentiment(content[:1000]) # Analyze start of content
+        sentiment = sentiment_result.get('label', 'neutral')
+        
+        return {"summary": summary, "sentiment": sentiment}
+        
+    except Exception as e:
+        logger.error(f"Error in summarize_news: {e}")
+        return {"summary": f"Failed to generate summary: {str(e)}", "sentiment": "neutral"}
