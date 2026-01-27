@@ -135,13 +135,7 @@ MarketPulseAI-main/
    pip install -r requirements.txt
    ```
 
-4. **Configure environment variables**
-   Create a `.env` file in the backend directory:
-   ```env
-   GEMINI_API_KEY=your_google_gemini_api_key_here
-   ```
-
-5. **Run the backend server**
+4. **Run the backend server**
    ```bash
    python main.py
    ```
