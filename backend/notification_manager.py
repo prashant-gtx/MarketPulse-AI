@@ -171,3 +171,5 @@ class NotificationManager:
             except Exception as e:
                 print(f"Error saving sent notifications for {user.email}: {e}")
                 db.rollback()
+
+
