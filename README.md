@@ -37,16 +37,13 @@ Every piece of news goes through a multi-stage AI pipeline:
         1.  The backend scrapes the specific article's full text.
         2.  It sends a prompt to the local **Ollama** instance running **Llama 3.2**.
         3.  The LLM generates a concise 100-word summary, stripping away noise, ads, and filler text.
-*   **Dynamic Retrieval Augmented Generation (RAG)**:
-    *   **Goal**: To answer factual questions about companies not in the model's training data.
-    *   **Self-Learning (Live Data Integration)**:
-        1.  **Extraction**: The AI analyzes your query (e.g., "How did Dabur perform?") and identifies the ticker (`DABUR.NS`). It prioritizes regex matching for accuracy.
-        2.  **Freshness Check**: It checks the local **ChromaDB** vector store. 
-            *   *Scenario A*: Data is fresh (ingested < 48 hours ago). It acts immediately.
-            *   *Scenario B*: Data is missing or stale. It **dynamically fetches** real-time price history and quarterly financials from **Yahoo Finance** on the fly.
-            *   *Scenario C*: **Self-Healing**: If stale data exists, the system automatically purges it before ingesting new 2025/2026 data to prevent hallucinations.
-        3.  **Ingest**: The new data is chunked, embedded using `SentenceTransformers`, and stored for future use.
-        4.  **Answer**: The chatbot retrieves this "live" context to provide an accurate, number-backed answer (e.g., "Tata Steel closed at 145.20 yesterday").
+*   **Dynamic / Agentic RAG (Retrieval Augmented Generation)**:
+    *   **Architecture**: Unlike static RAG systems, MarketPulse uses an **"Agentic"** approach.
+    *   **Self-Healing & Live Data**:
+        1.  **Intent Recognition**: Uses Llama 3.2 to extract stock tickers from user queries (e.g., "Tata Steel" -> `TATASTEEL.NS`).
+        2.  **Freshness Check**: It checks the local **ChromaDB**. If data is missing or stale (> 48h), it pauses to **dynamically fetch** real-time prices (last 5 days) and financials via **Yahoo Finance**.
+        3.  **Hybrid Context**: The AI answers using a combination of qualitative news (Vector DB), quantitative live data (yfinance), and pre-training knowledge.
+        4.  **Result**: Eliminates hallucinations about stock prices by ensuring the context is always "fresh".
 
 ### 3. User Experience (The Frontend)
 *   **Real-Time Feed**: Users see a paginated feed of news, sorted by recency.
