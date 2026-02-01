@@ -218,6 +218,7 @@ graph TD
     end
 
     MarketData -->|Fetches Prices or Financials| Yahoo["Yahoo Finance API"]
+    MarketData -.->|Fallback Live Prices| GoogleFinance["Google Finance Scraper"]
     Scraper -->|Scrapes Content| Moneycontrol["Moneycontrol Website"]
     EmailSvc -->|Sends Email| GmailSMTP["Gmail SMTP Server"]
     
@@ -272,7 +273,9 @@ sequenceDiagram
 
 #### 3. Data Pipeline & Scraper
 *   **Technology**: BeautifulSoup4 + Requests.
+
 *   **Role**: Automatically scrapes **MoneyControl** for the latest financial news.
+*   **Live Data Fallback**: A dedicated `live_scraper.py` module fetches real-time prices from **Google Finance** when standard APIs return stale data (e.g., during special trading sessions).
 *   **Caching**: News is cached in a JSON file to reduce latency and avoid hitting external rate limits.
 
 #### 4. AI Engine (Local Intelligence)
