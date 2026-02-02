@@ -492,7 +492,10 @@ function Dashboard({ onLogout, isAuthenticated, userName }) {
                                         <span className="text-[11px] font-black text-emerald-400 tracking-[0.15em]">LIVE</span>
                                     </div>
 
-                                    {Object.entries(marketData.indices).map(([key, data], idx) => {
+                                    {['Sensex', 'Nifty 50'].map((key, idx) => {
+                                        const data = marketData.indices[key];
+                                        if (!data) return null; // specific index might be missing in partial load
+
                                         const isPositive = data.change >= 0;
                                         const colorClass = isPositive ? 'text-emerald-400' : 'text-rose-400';
                                         const strokeColor = isPositive ? '#10b981' : '#f43f5e';

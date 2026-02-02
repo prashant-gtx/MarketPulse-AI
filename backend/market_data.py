@@ -268,34 +268,32 @@ def get_stock_history(symbol, period="1mo"):
             })
             
         # FIX: Append live price if history is stale (e.g. Special Session or Weekend lag)
+        # We try to get the live price from Google Finance scraper
         try:
             live_price = get_live_price(search_symbol)
             
             if not hist.empty:
                 last_hist_time = hist.index[-1]
                 
-                # If we have a live price, check if we need to append it
-                # We append if:
-                # 1. The history is from a previous day
-                # 2. OR we just want to ensure the very latest price is shown (even if intraday)
-                if live_price:
-                     # Always append live price for charts to make them "feel" live
+                # Logic: If the last history point is NOT from today, we append "Live" as a new point
+                # This catches:
+                # 1. Missing "Yesterday" (if today is Monday and yesterday was Sunday session)
+                # 2. Today's live movement if yfinance hasn't updated yet
+                
+                today_date = datetime.now().date()
+                last_hist_date = last_hist_time.date()
+                
+                if live_price and last_hist_date < today_date:
+                     # Calculate a pseudo-timestamp. 
+                     # If data is missing for yesterday, this point acts as "Now"
                      data.append({
                          "date": datetime.now().astimezone().isoformat(), 
                          "price": round(live_price, 2),
                          "high": round(live_price, 2), 
                          "low": round(live_price, 2)
                      })
-                elif last_hist_time.date() < datetime.now().date():
-                     # Fallback to fast_info if scraper failed but history is OLD
-                     current_price = ticker.fast_info.last_price
-                     if current_price:
-                         data.append({
-                             "date": datetime.now().astimezone().isoformat(), 
-                             "price": round(current_price, 2),
-                             "high": round(current_price, 2), 
-                             "low": round(current_price, 2)
-                         })
+                     print(f"Appended live fallback for {symbol}: {live_price}")
+                     
         except Exception as ex:
             print(f"Error appending live point: {ex}")
             
